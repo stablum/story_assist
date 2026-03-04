@@ -101,6 +101,12 @@ label {
   color: var(--ink-soft);
 }
 
+.field-note {
+  margin: 0.3rem 0 0;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
 textarea,
 input,
 select {
@@ -265,6 +271,6 @@ select:focus {
   }
 
   .provider-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
   }
 }

@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 ProviderName = Literal["openai", "anthropic", "google"]
+ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
 
 
 class AnalyzeRequest(BaseModel):
@@ -12,6 +13,7 @@ class AnalyzeRequest(BaseModel):
     questions: list[str] = Field(min_length=1)
     provider: ProviderName = "openai"
     model: str | None = None
+    reasoning_effort: ReasoningEffort | None = "medium"
 
     @field_validator("story_sketch")
     @classmethod

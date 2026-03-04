@@ -24,9 +24,11 @@ uv run uvicorn app.main:app --reload
 Open `http://127.0.0.1:8000`.
 
 Default provider models:
-- OpenAI: `gpt-5`
+- OpenAI: `gpt-5.2`
 - Anthropic: `claude-sonnet-4-5`
 - Google: `gemini-2.5-pro`
+
+OpenAI requests also support configurable `reasoning_effort` (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`) from the UI.
 
 ## Test
 

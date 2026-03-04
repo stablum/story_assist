@@ -32,6 +32,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         questions=request.questions,
         provider=request.provider,
         model=request.model,
+        reasoning_effort=request.reasoning_effort,
         settings=settings,
     )
 

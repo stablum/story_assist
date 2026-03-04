@@ -4,7 +4,7 @@ import asyncio
 
 from app.config import Settings
 from app.providers import run_provider_prompt
-from app.schemas import AnswerItem, ProviderName
+from app.schemas import AnswerItem, ProviderName, ReasoningEffort
 
 PROMPT_TEMPLATE = """
 You are a research assistant for journalists and fiction/non-fiction story writers.
@@ -30,6 +30,7 @@ async def answer_single_question(
     question: str,
     provider: ProviderName,
     model: str | None,
+    reasoning_effort: ReasoningEffort | None,
     settings: Settings,
 ) -> tuple[str, str, str]:
     prompt = PROMPT_TEMPLATE.format(story_sketch=story_sketch, question=question)
@@ -38,6 +39,7 @@ async def answer_single_question(
         settings=settings,
         prompt=prompt,
         model=model,
+        reasoning_effort=reasoning_effort,
     )
     return question, resolved_model, answer
 
@@ -48,6 +50,7 @@ async def analyze_story(
     questions: list[str],
     provider: ProviderName,
     model: str | None,
+    reasoning_effort: ReasoningEffort | None,
     settings: Settings,
 ) -> tuple[str, list[AnswerItem]]:
     tasks = [
@@ -56,6 +59,7 @@ async def analyze_story(
             question=question,
             provider=provider,
             model=model,
+            reasoning_effort=reasoning_effort,
             settings=settings,
         )
         for question in questions

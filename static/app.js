@@ -9,6 +9,8 @@ const form = document.getElementById("analyze-form");
 const storySketch = document.getElementById("story-sketch");
 const providerInput = document.getElementById("provider");
 const modelInput = document.getElementById("model");
+const reasoningEffortInput = document.getElementById("reasoning-effort");
+const reasoningNote = document.getElementById("reasoning-note");
 const questionsList = document.getElementById("questions-list");
 const addQuestionButton = document.getElementById("add-question");
 const analyzeButton = document.getElementById("analyze-button");
@@ -54,6 +56,14 @@ function getCleanQuestions() {
   return questions.map((item) => item.trim()).filter(Boolean);
 }
 
+function syncReasoningControl() {
+  const isOpenAI = providerInput.value === "openai";
+  reasoningEffortInput.disabled = !isOpenAI;
+  reasoningNote.textContent = isOpenAI
+    ? "Applies to OpenAI reasoning models."
+    : "Ignored for this provider.";
+}
+
 function renderAnswers(results) {
   answersEl.innerHTML = "";
 
@@ -82,6 +92,8 @@ addQuestionButton.addEventListener("click", () => {
   questions.push("");
   renderQuestions();
 });
+
+providerInput.addEventListener("change", syncReasoningControl);
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -113,6 +125,10 @@ form.addEventListener("submit", async (event) => {
         questions: cleanedQuestions,
         provider: providerInput.value,
         model: modelInput.value.trim() || null,
+        reasoning_effort:
+          providerInput.value === "openai"
+            ? reasoningEffortInput.value
+            : null,
       }),
     });
 
@@ -122,7 +138,10 @@ form.addEventListener("submit", async (event) => {
     }
 
     renderAnswers(body.results || []);
-    metaEl.textContent = `${body.provider} | ${body.model || "default model"}`;
+    const reasoningMeta = providerInput.value === "openai"
+      ? ` | reasoning=${reasoningEffortInput.value}`
+      : "";
+    metaEl.textContent = `${body.provider} | ${body.model || "default model"}${reasoningMeta}`;
     setStatus("Complete. You can edit outputs directly.");
   } catch (error) {
     setStatus(error.message || "Request failed", true);
@@ -133,3 +152,4 @@ form.addEventListener("submit", async (event) => {
 });
 
 renderQuestions();
+syncReasoningControl();

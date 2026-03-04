@@ -6,7 +6,10 @@ client = TestClient(app)
 
 
 def test_analyze_valid_request(monkeypatch):
+    captured_kwargs = {}
+
     async def fake_analyze_story(**kwargs):
+        captured_kwargs.update(kwargs)
         questions = kwargs["questions"]
         return "fake-model", [
             {
@@ -25,6 +28,7 @@ def test_analyze_valid_request(monkeypatch):
             "story_sketch": "A factory reopens in a small town.",
             "questions": ["What are economic risks?", "Who benefits politically?"],
             "provider": "openai",
+            "reasoning_effort": "high",
         },
     )
 
@@ -34,6 +38,7 @@ def test_analyze_valid_request(monkeypatch):
     assert payload["model"] == "fake-model"
     assert len(payload["results"]) == 2
     assert payload["results"][0]["error"] is None
+    assert captured_kwargs["reasoning_effort"] == "high"
 
 
 def test_analyze_rejects_empty_question_list():
@@ -43,6 +48,20 @@ def test_analyze_rejects_empty_question_list():
             "story_sketch": "A sketch",
             "questions": [],
             "provider": "openai",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_analyze_rejects_invalid_reasoning_effort():
+    response = client.post(
+        "/api/analyze",
+        json={
+            "story_sketch": "A sketch",
+            "questions": ["What next?"],
+            "provider": "openai",
+            "reasoning_effort": "turbo",
         },
     )
 

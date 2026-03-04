@@ -4,10 +4,10 @@ import asyncio
 from typing import Any
 
 from app.config import Settings
-from app.schemas import ProviderName
+from app.schemas import ProviderName, ReasoningEffort
 
 DEFAULT_MODELS: dict[ProviderName, str] = {
-    "openai": "gpt-5",
+    "openai": "gpt-5.2",
     "anthropic": "claude-sonnet-4-5",
     "google": "gemini-2.5-pro",
 }
@@ -73,14 +73,25 @@ def _extract_google_text(response: Any) -> str:
     return "\n".join(parts).strip()
 
 
-def _run_openai(api_key: str, model: str, prompt: str) -> str:
+def _run_openai(
+    api_key: str,
+    model: str,
+    prompt: str,
+    reasoning_effort: ReasoningEffort | None,
+) -> str:
     from openai import OpenAI
 
     client = OpenAI(api_key=api_key)
+    payload: dict[str, Any] = {
+        "model": model,
+        "input": prompt,
+        "tools": [{"type": "web_search_preview"}],
+    }
+    if reasoning_effort:
+        payload["reasoning"] = {"effort": reasoning_effort}
+
     response = client.responses.create(
-        model=model,
-        input=prompt,
-        tools=[{"type": "web_search_preview"}],
+        **payload,
     )
 
     text = _extract_openai_text(response)
@@ -138,6 +149,7 @@ async def run_provider_prompt(
     settings: Settings,
     prompt: str,
     model: str | None = None,
+    reasoning_effort: ReasoningEffort | None = None,
 ) -> tuple[str, str]:
     resolved_model = resolve_model(provider, model)
 
@@ -149,6 +161,7 @@ async def run_provider_prompt(
             settings.openai_api_key,
             resolved_model,
             prompt,
+            reasoning_effort,
         )
         return resolved_model, answer
 

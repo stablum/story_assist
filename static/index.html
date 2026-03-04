@@ -37,6 +37,18 @@
             <label for="model">Model (optional)</label>
             <input id="model" type="text" placeholder="Leave blank for provider default">
           </div>
+          <div>
+            <label for="reasoning-effort">Reasoning Effort</label>
+            <select id="reasoning-effort">
+              <option value="none">None</option>
+              <option value="minimal">Minimal</option>
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+              <option value="xhigh">XHigh</option>
+            </select>
+            <p id="reasoning-note" class="field-note">Applies to OpenAI reasoning models.</p>
+          </div>
         </div>
 
         <div class="questions-header">
