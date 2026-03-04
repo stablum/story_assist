@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Story Assist Desk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="grain"></div>
+  <main class="layout">
+    <header class="hero">
+      <p class="kicker">Investigative drafting studio</p>
+      <h1>Story Assist Desk</h1>
+      <p class="subtitle">Turn a sketch into researched angles, context, and leads.</p>
+    </header>
+
+    <section class="panel input-panel">
+      <h2>Story Sketch</h2>
+      <form id="analyze-form">
+        <label for="story-sketch">Narrative seed</label>
+        <textarea id="story-sketch" placeholder="A newly elected mayor promises to reopen a shuttered steel mill by partnering with a foreign investor..."></textarea>
+
+        <div class="provider-grid">
+          <div>
+            <label for="provider">Provider</label>
+            <select id="provider">
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="google">Google Gemini</option>
+            </select>
+          </div>
+          <div>
+            <label for="model">Model (optional)</label>
+            <input id="model" type="text" placeholder="Leave blank for provider default">
+          </div>
+        </div>
+
+        <div class="questions-header">
+          <h3>Configured Questions</h3>
+          <button id="add-question" type="button">Add Question</button>
+        </div>
+        <div id="questions-list" class="questions-list"></div>
+
+        <button id="analyze-button" type="submit" class="primary">Analyze Story</button>
+        <p id="status" class="status"></p>
+      </form>
+    </section>
+
+    <section class="panel output-panel">
+      <div class="output-header">
+        <h2>Research Output</h2>
+        <p id="meta"></p>
+      </div>
+      <div id="answers" class="answers"></div>
+    </section>
+  </main>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
