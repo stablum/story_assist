@@ -31,6 +31,7 @@ Default provider models:
 OpenAI requests also support configurable `reasoning_effort` (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`) from the UI.
 
 The UI model selector is a dropdown populated from `/api/model-options` for the chosen provider.
+The analysis run now shows live progress per question using `/api/analyze/jobs` polling.
 
 ## Test
 

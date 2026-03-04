@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field, field_validator
 
 ProviderName = Literal["openai", "anthropic", "google"]
 ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
+QuestionRunStatus = Literal["queued", "running", "completed", "failed"]
+AnalyzeJobStatus = Literal["queued", "running", "completed", "completed_with_errors"]
 
 
 class AnalyzeRequest(BaseModel):
@@ -56,3 +58,34 @@ class ModelOptionsResponse(BaseModel):
     provider: ProviderName
     default_model: str
     models: list[str]
+
+
+class AnalyzeJobCreateResponse(BaseModel):
+    job_id: str
+    status: AnalyzeJobStatus
+
+
+class AnalyzeJobQuestionProgress(BaseModel):
+    index: int
+    question: str
+    status: QuestionRunStatus
+    started_at: float | None = None
+    finished_at: float | None = None
+    elapsed_seconds: float | None = None
+    answer: str = ""
+    error: str | None = None
+
+
+class AnalyzeJobProgressResponse(BaseModel):
+    job_id: str
+    status: AnalyzeJobStatus
+    provider: ProviderName
+    model: str
+    reasoning_effort: ReasoningEffort | None = None
+    started_at: float
+    finished_at: float | None = None
+    total_questions: int
+    completed_questions: int
+    failed_questions: int
+    progress_percent: int
+    items: list[AnalyzeJobQuestionProgress]

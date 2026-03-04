@@ -18,9 +18,16 @@ const analyzeButton = document.getElementById("analyze-button");
 const statusEl = document.getElementById("status");
 const answersEl = document.getElementById("answers");
 const metaEl = document.getElementById("meta");
+const progressJobIdEl = document.getElementById("progress-job-id");
+const progressBarEl = document.getElementById("progress-bar");
+const progressSummaryEl = document.getElementById("progress-summary");
+const progressTimingEl = document.getElementById("progress-timing");
+const progressListEl = document.getElementById("progress-list");
 
 let questions = [...defaultQuestions];
 let modelRequestCounter = 0;
+let activeJobId = null;
+let pollingTimer = null;
 
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
@@ -151,6 +158,164 @@ function renderAnswers(results) {
   });
 }
 
+function formatSeconds(secondsValue) {
+  if (typeof secondsValue !== "number" || Number.isNaN(secondsValue)) {
+    return "--";
+  }
+  return `${secondsValue.toFixed(1)}s`;
+}
+
+function formatStatus(status) {
+  switch (status) {
+    case "queued":
+      return "Queued";
+    case "running":
+      return "Running";
+    case "completed":
+      return "Done";
+    case "failed":
+      return "Failed";
+    case "completed_with_errors":
+      return "Done w/ Errors";
+    default:
+      return status;
+  }
+}
+
+function resetProgressPanel() {
+  progressJobIdEl.textContent = "";
+  progressBarEl.style.width = "0%";
+  progressSummaryEl.textContent = "No run in progress.";
+  progressTimingEl.textContent = "";
+  progressListEl.innerHTML = "";
+}
+
+function renderProgress(progress) {
+  progressJobIdEl.textContent = `Job ${progress.job_id.slice(0, 8)} | ${formatStatus(progress.status)}`;
+  progressBarEl.style.width = `${progress.progress_percent || 0}%`;
+
+  const doneCount = (progress.completed_questions || 0) + (progress.failed_questions || 0);
+  progressSummaryEl.textContent = `${doneCount}/${progress.total_questions} finished | ${progress.failed_questions || 0} failed`;
+
+  const runStart = typeof progress.started_at === "number" ? progress.started_at : null;
+  const runEnd = typeof progress.finished_at === "number" ? progress.finished_at : null;
+  if (runStart !== null) {
+    const elapsed = Math.max(0, (runEnd ?? Date.now() / 1000) - runStart);
+    progressTimingEl.textContent = `Elapsed: ${formatSeconds(elapsed)}`;
+  } else {
+    progressTimingEl.textContent = "";
+  }
+
+  progressListEl.innerHTML = "";
+  (progress.items || []).forEach((item) => {
+    const line = document.createElement("article");
+    line.className = `progress-item ${item.status}`;
+
+    const dot = document.createElement("span");
+    dot.className = "progress-dot";
+
+    const question = document.createElement("p");
+    question.className = "progress-question";
+    question.textContent = item.question;
+
+    const right = document.createElement("p");
+    right.className = "progress-right";
+
+    const badge = document.createElement("span");
+    badge.className = "progress-badge";
+    badge.textContent = formatStatus(item.status);
+
+    const timer = document.createElement("span");
+    timer.textContent = formatSeconds(item.elapsed_seconds);
+
+    right.append(badge, timer);
+    line.append(dot, question, right);
+
+    if (item.error) {
+      const errorLine = document.createElement("p");
+      errorLine.className = "progress-error";
+      errorLine.textContent = `Error: ${item.error}`;
+      line.append(errorLine);
+    }
+
+    progressListEl.append(line);
+  });
+}
+
+function stopPolling() {
+  if (pollingTimer !== null) {
+    window.clearTimeout(pollingTimer);
+    pollingTimer = null;
+  }
+}
+
+function schedulePoll(jobId, delayMs = 650) {
+  stopPolling();
+  pollingTimer = window.setTimeout(() => {
+    void pollJob(jobId);
+  }, delayMs);
+}
+
+function isTerminalJobStatus(status) {
+  return status === "completed" || status === "completed_with_errors";
+}
+
+function buildResultItems(progress) {
+  return (progress.items || []).map((item) => ({
+    question: item.question,
+    answer: item.answer || "",
+    error: item.error || null,
+  }));
+}
+
+async function pollJob(jobId) {
+  try {
+    const response = await fetch(`/api/analyze/jobs/${encodeURIComponent(jobId)}`);
+    const body = await response.json();
+
+    if (!response.ok) {
+      throw new Error(body.detail || "Could not fetch progress");
+    }
+
+    if (activeJobId !== jobId) {
+      return;
+    }
+
+    renderProgress(body);
+    const doneCount = (body.completed_questions || 0) + (body.failed_questions || 0);
+    setStatus(`Running: ${doneCount}/${body.total_questions} complete`);
+
+    if (!isTerminalJobStatus(body.status)) {
+      schedulePoll(jobId);
+      return;
+    }
+
+    stopPolling();
+    renderAnswers(buildResultItems(body));
+
+    const reasoningMeta = body.provider === "openai" && body.reasoning_effort
+      ? ` | reasoning=${body.reasoning_effort}`
+      : "";
+    metaEl.textContent = `${body.provider} | ${body.model}${reasoningMeta}`;
+
+    if ((body.failed_questions || 0) > 0) {
+      setStatus(`Complete with ${body.failed_questions} failed question(s).`, true);
+    } else {
+      setStatus("Complete. You can edit outputs directly.");
+    }
+
+    analyzeButton.disabled = false;
+    analyzeButton.textContent = "Analyze Story";
+  } catch (error) {
+    if (activeJobId !== jobId) {
+      return;
+    }
+
+    setStatus(`Progress update failed: ${error.message || "unknown error"}`, true);
+    schedulePoll(jobId, 1400);
+  }
+}
+
 addQuestionButton.addEventListener("click", () => {
   questions.push("");
   renderQuestions();
@@ -177,46 +342,67 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
+  stopPolling();
+  activeJobId = null;
+  resetProgressPanel();
+  answersEl.innerHTML = "";
+
+  const payload = {
+    story_sketch: cleanedStory,
+    questions: cleanedQuestions,
+    provider: providerInput.value,
+    model: modelSelect.value || null,
+    reasoning_effort: providerInput.value === "openai"
+      ? reasoningEffortInput.value
+      : null,
+  };
+
   analyzeButton.disabled = true;
   analyzeButton.textContent = "Analyzing...";
-  setStatus("Running web-backed research prompts...");
+  setStatus("Submitting analysis job...");
   metaEl.textContent = "";
 
   try {
-    const response = await fetch("/api/analyze", {
+    const response = await fetch("/api/analyze/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        story_sketch: cleanedStory,
-        questions: cleanedQuestions,
-        provider: providerInput.value,
-        model: modelSelect.value || null,
-        reasoning_effort:
-          providerInput.value === "openai"
-            ? reasoningEffortInput.value
-            : null,
-      }),
+      body: JSON.stringify(payload),
     });
-
     const body = await response.json();
+
     if (!response.ok) {
-      throw new Error(body.detail || "Analysis failed");
+      throw new Error(body.detail || "Analysis failed to start");
     }
 
-    renderAnswers(body.results || []);
-    const reasoningMeta = providerInput.value === "openai"
-      ? ` | reasoning=${reasoningEffortInput.value}`
-      : "";
-    metaEl.textContent = `${body.provider} | ${body.model || "default model"}${reasoningMeta}`;
-    setStatus("Complete. You can edit outputs directly.");
+    activeJobId = body.job_id;
+    renderProgress({
+      job_id: body.job_id,
+      status: body.status,
+      total_questions: payload.questions.length,
+      completed_questions: 0,
+      failed_questions: 0,
+      progress_percent: 0,
+      started_at: Date.now() / 1000,
+      finished_at: null,
+      items: payload.questions.map((question, index) => ({
+        index,
+        question,
+        status: "queued",
+        elapsed_seconds: null,
+        error: null,
+      })),
+    });
+
+    setStatus("Job started. Gathering live updates...");
+    schedulePoll(body.job_id, 80);
   } catch (error) {
-    setStatus(error.message || "Request failed", true);
-  } finally {
     analyzeButton.disabled = false;
     analyzeButton.textContent = "Analyze Story";
+    setStatus(error.message || "Request failed", true);
   }
 });
 
 renderQuestions();
 syncReasoningControl();
+resetProgressPanel();
 void loadModelOptions();

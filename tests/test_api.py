@@ -83,6 +83,88 @@ def test_model_options_route(monkeypatch):
     assert payload["models"] == ["gpt-5.2", "gpt-5.3-chat-latest"]
 
 
+def test_create_analyze_job_route(monkeypatch):
+    async def fake_create_job(request, settings):
+        assert request.provider == "openai"
+        return {"job_id": "job123", "status": "queued"}
+
+    monkeypatch.setattr("app.main.job_manager.create_job", fake_create_job)
+
+    response = client.post(
+        "/api/analyze/jobs",
+        json={
+            "story_sketch": "A factory reopens in a small town.",
+            "questions": ["What are economic risks?"],
+            "provider": "openai",
+            "reasoning_effort": "medium",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["job_id"] == "job123"
+    assert payload["status"] == "queued"
+
+
+def test_analyze_job_progress_route(monkeypatch):
+    async def fake_get_job_progress(job_id):
+        assert job_id == "job123"
+        return {
+            "job_id": "job123",
+            "status": "running",
+            "provider": "openai",
+            "model": "gpt-5.2",
+            "reasoning_effort": "high",
+            "started_at": 1000.0,
+            "finished_at": None,
+            "total_questions": 2,
+            "completed_questions": 1,
+            "failed_questions": 0,
+            "progress_percent": 50,
+            "items": [
+                {
+                    "index": 0,
+                    "question": "Q1",
+                    "status": "completed",
+                    "started_at": 1000.0,
+                    "finished_at": 1001.2,
+                    "elapsed_seconds": 1.2,
+                    "answer": "A1",
+                    "error": None,
+                },
+                {
+                    "index": 1,
+                    "question": "Q2",
+                    "status": "running",
+                    "started_at": 1000.1,
+                    "finished_at": None,
+                    "elapsed_seconds": 0.7,
+                    "answer": "",
+                    "error": None,
+                },
+            ],
+        }
+
+    monkeypatch.setattr("app.main.job_manager.get_job_progress", fake_get_job_progress)
+
+    response = client.get("/api/analyze/jobs/job123")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["job_id"] == "job123"
+    assert payload["progress_percent"] == 50
+    assert len(payload["items"]) == 2
+
+
+def test_analyze_job_progress_not_found(monkeypatch):
+    async def fake_get_job_progress(job_id):
+        return None
+
+    monkeypatch.setattr("app.main.job_manager.get_job_progress", fake_get_job_progress)
+
+    response = client.get("/api/analyze/jobs/missing")
+    assert response.status_code == 404
+
+
 def test_static_index_is_served():
     response = client.get("/")
     assert response.status_code == 200
