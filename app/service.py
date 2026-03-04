@@ -14,7 +14,7 @@ Story sketch:
 {story_sketch}
 
 Question:
-{question}
+{question_block}
 
 Instructions:
 - Answer in 2-5 concise paragraphs.
@@ -24,16 +24,26 @@ Instructions:
 """.strip()
 
 
+def build_question_block(question: str, question_preamble: str | None) -> str:
+    if not question_preamble:
+        return question
+    return f"Common preamble to apply:\n{question_preamble}\n\nSpecific question:\n{question}"
+
+
 async def answer_single_question(
     *,
     story_sketch: str,
     question: str,
+    question_preamble: str | None,
     provider: ProviderName,
     model: str | None,
     reasoning_effort: ReasoningEffort | None,
     settings: Settings,
 ) -> tuple[str, str, str]:
-    prompt = PROMPT_TEMPLATE.format(story_sketch=story_sketch, question=question)
+    prompt = PROMPT_TEMPLATE.format(
+        story_sketch=story_sketch,
+        question_block=build_question_block(question, question_preamble),
+    )
     resolved_model, answer = await run_provider_prompt(
         provider=provider,
         settings=settings,
@@ -47,6 +57,7 @@ async def answer_single_question(
 async def analyze_story(
     *,
     story_sketch: str,
+    question_preamble: str | None,
     questions: list[str],
     provider: ProviderName,
     model: str | None,
@@ -57,6 +68,7 @@ async def analyze_story(
         answer_single_question(
             story_sketch=story_sketch,
             question=question,
+            question_preamble=question_preamble,
             provider=provider,
             model=model,
             reasoning_effort=reasoning_effort,

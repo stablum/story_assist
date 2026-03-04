@@ -39,6 +39,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     settings = get_settings()
     resolved_model, results = await analyze_story(
         story_sketch=request.story_sketch,
+        question_preamble=request.question_preamble,
         questions=request.questions,
         provider=request.provider,
         model=request.model,

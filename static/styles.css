@@ -133,6 +133,11 @@ select:focus {
   margin-bottom: 0.8rem;
 }
 
+.compact-textarea {
+  min-height: 92px;
+  margin-bottom: 0.9rem;
+}
+
 .provider-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -484,3 +489,4 @@ select:focus {
     grid-template-columns: 1fr 1fr 1fr;
   }
 }
+

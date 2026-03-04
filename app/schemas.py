@@ -12,6 +12,7 @@ AnalyzeJobStatus = Literal["queued", "running", "completed", "completed_with_err
 
 class AnalyzeRequest(BaseModel):
     story_sketch: str = Field(min_length=1)
+    question_preamble: str | None = None
     questions: list[str] = Field(min_length=1)
     provider: ProviderName = "openai"
     model: str | None = None
@@ -24,6 +25,14 @@ class AnalyzeRequest(BaseModel):
         if not cleaned:
             raise ValueError("story_sketch cannot be empty")
         return cleaned
+
+    @field_validator("question_preamble")
+    @classmethod
+    def validate_question_preamble(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
 
     @field_validator("questions")
     @classmethod

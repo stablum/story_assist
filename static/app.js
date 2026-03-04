@@ -7,6 +7,7 @@ const defaultQuestions = [
 
 const form = document.getElementById("analyze-form");
 const storySketch = document.getElementById("story-sketch");
+const questionPreambleInput = document.getElementById("question-preamble");
 const providerInput = document.getElementById("provider");
 const modelSelect = document.getElementById("model");
 const modelNote = document.getElementById("model-note");
@@ -398,6 +399,7 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const cleanedStory = storySketch.value.trim();
+  const cleanedPreamble = questionPreambleInput.value.trim();
   const cleanedQuestions = getCleanQuestions();
 
   if (!cleanedStory) {
@@ -417,6 +419,7 @@ form.addEventListener("submit", async (event) => {
 
   const payload = {
     story_sketch: cleanedStory,
+    question_preamble: cleanedPreamble || null,
     questions: cleanedQuestions,
     provider: providerInput.value,
     model: modelSelect.value || null,
@@ -474,3 +477,6 @@ renderQuestions();
 syncReasoningControl();
 resetProgressPanel();
 void loadModelOptions();
+
+
+

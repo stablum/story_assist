@@ -26,6 +26,7 @@ def test_analyze_valid_request(monkeypatch):
         "/api/analyze",
         json={
             "story_sketch": "A factory reopens in a small town.",
+            "question_preamble": "Use an investigative tone and cite official sources.",
             "questions": ["What are economic risks?", "Who benefits politically?"],
             "provider": "openai",
             "reasoning_effort": "high",
@@ -39,6 +40,7 @@ def test_analyze_valid_request(monkeypatch):
     assert len(payload["results"]) == 2
     assert payload["results"][0]["error"] is None
     assert captured_kwargs["reasoning_effort"] == "high"
+    assert captured_kwargs["question_preamble"] == "Use an investigative tone and cite official sources."
 
 
 def test_analyze_rejects_empty_question_list():
@@ -86,6 +88,7 @@ def test_model_options_route(monkeypatch):
 def test_create_analyze_job_route(monkeypatch):
     async def fake_create_job(request, settings):
         assert request.provider == "openai"
+        assert request.question_preamble == "Prioritize policy and labor impact."
         return {"job_id": "job123", "status": "queued"}
 
     monkeypatch.setattr("app.main.job_manager.create_job", fake_create_job)
@@ -94,6 +97,7 @@ def test_create_analyze_job_route(monkeypatch):
         "/api/analyze/jobs",
         json={
             "story_sketch": "A factory reopens in a small town.",
+            "question_preamble": "Prioritize policy and labor impact.",
             "questions": ["What are economic risks?"],
             "provider": "openai",
             "reasoning_effort": "medium",
@@ -169,3 +173,7 @@ def test_static_index_is_served():
     response = client.get("/")
     assert response.status_code == 200
     assert "Story Assist Desk" in response.text
+
+
+
+

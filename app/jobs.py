@@ -136,6 +136,7 @@ class JobManager:
             _, resolved_model, answer = await answer_single_question(
                 story_sketch=request.story_sketch,
                 question=question,
+                question_preamble=request.question_preamble,
                 provider=request.provider,
                 model=request.model,
                 reasoning_effort=request.reasoning_effort,
