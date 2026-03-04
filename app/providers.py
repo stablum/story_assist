@@ -7,7 +7,7 @@ from app.config import Settings
 from app.schemas import ProviderName
 
 DEFAULT_MODELS: dict[ProviderName, str] = {
-    "openai": "gpt-4.1",
+    "openai": "gpt-5",
     "anthropic": "claude-sonnet-4-5",
     "google": "gemini-2.5-pro",
 }
@@ -81,7 +81,6 @@ def _run_openai(api_key: str, model: str, prompt: str) -> str:
         model=model,
         input=prompt,
         tools=[{"type": "web_search_preview"}],
-        temperature=0.2,
     )
 
     text = _extract_openai_text(response)

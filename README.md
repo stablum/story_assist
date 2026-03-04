@@ -23,6 +23,11 @@ uv run uvicorn app.main:app --reload
 
 Open `http://127.0.0.1:8000`.
 
+Default provider models:
+- OpenAI: `gpt-5`
+- Anthropic: `claude-sonnet-4-5`
+- Google: `gemini-2.5-pro`
+
 ## Test
 
 ```powershell
