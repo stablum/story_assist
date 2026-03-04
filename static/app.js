@@ -8,7 +8,8 @@ const defaultQuestions = [
 const form = document.getElementById("analyze-form");
 const storySketch = document.getElementById("story-sketch");
 const providerInput = document.getElementById("provider");
-const modelInput = document.getElementById("model");
+const modelSelect = document.getElementById("model");
+const modelNote = document.getElementById("model-note");
 const reasoningEffortInput = document.getElementById("reasoning-effort");
 const reasoningNote = document.getElementById("reasoning-note");
 const questionsList = document.getElementById("questions-list");
@@ -19,6 +20,7 @@ const answersEl = document.getElementById("answers");
 const metaEl = document.getElementById("meta");
 
 let questions = [...defaultQuestions];
+let modelRequestCounter = 0;
 
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
@@ -54,6 +56,67 @@ function renderQuestions() {
 
 function getCleanQuestions() {
   return questions.map((item) => item.trim()).filter(Boolean);
+}
+
+function setModelOptions(defaultModel, models, selectedValue) {
+  const optionValues = Array.from(
+    new Set([...(models || [])].filter((item) => typeof item === "string" && item.trim())),
+  );
+
+  modelSelect.innerHTML = "";
+
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "";
+  defaultOption.textContent = `Provider default (${defaultModel || "default"})`;
+  modelSelect.append(defaultOption);
+
+  optionValues.forEach((model) => {
+    const option = document.createElement("option");
+    option.value = model;
+    option.textContent = model;
+    modelSelect.append(option);
+  });
+
+  if (selectedValue && optionValues.includes(selectedValue)) {
+    modelSelect.value = selectedValue;
+  } else {
+    modelSelect.value = "";
+  }
+}
+
+async function loadModelOptions() {
+  const requestId = ++modelRequestCounter;
+  const provider = providerInput.value;
+  const previousSelection = modelSelect.value;
+  modelSelect.disabled = true;
+  modelSelect.innerHTML = "<option value=\"\">Loading models...</option>";
+
+  try {
+    const response = await fetch(`/api/model-options?provider=${encodeURIComponent(provider)}`);
+    const body = await response.json();
+    if (!response.ok) {
+      throw new Error(body.detail || "Could not load models");
+    }
+
+    if (requestId !== modelRequestCounter) {
+      return;
+    }
+
+    setModelOptions(body.default_model, body.models, previousSelection);
+    modelNote.textContent = `Loaded ${body.models.length} options for ${provider}.`;
+  } catch (error) {
+    if (requestId !== modelRequestCounter) {
+      return;
+    }
+
+    setModelOptions("", [], "");
+    modelNote.textContent = `Could not load model list for ${provider}.`;
+    setStatus(error.message || "Unable to load models", true);
+  } finally {
+    if (requestId === modelRequestCounter) {
+      modelSelect.disabled = false;
+    }
+  }
 }
 
 function syncReasoningControl() {
@@ -93,7 +156,10 @@ addQuestionButton.addEventListener("click", () => {
   renderQuestions();
 });
 
-providerInput.addEventListener("change", syncReasoningControl);
+providerInput.addEventListener("change", () => {
+  syncReasoningControl();
+  void loadModelOptions();
+});
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -124,7 +190,7 @@ form.addEventListener("submit", async (event) => {
         story_sketch: cleanedStory,
         questions: cleanedQuestions,
         provider: providerInput.value,
-        model: modelInput.value.trim() || null,
+        model: modelSelect.value || null,
         reasoning_effort:
           providerInput.value === "openai"
             ? reasoningEffortInput.value
@@ -153,3 +219,4 @@ form.addEventListener("submit", async (event) => {
 
 renderQuestions();
 syncReasoningControl();
+void loadModelOptions();

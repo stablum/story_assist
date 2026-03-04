@@ -50,3 +50,9 @@ class AnalyzeResponse(BaseModel):
     provider: ProviderName
     model: str
     results: list[AnswerItem]
+
+
+class ModelOptionsResponse(BaseModel):
+    provider: ProviderName
+    default_model: str
+    models: list[str]

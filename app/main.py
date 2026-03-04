@@ -7,7 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
-from app.schemas import AnalyzeRequest, AnalyzeResponse
+from app.providers import list_provider_models, resolve_model
+from app.schemas import AnalyzeRequest, AnalyzeResponse, ModelOptionsResponse, ProviderName
 from app.service import analyze_story
 
 app = FastAPI(title="Story Assist", version="0.1.0")
@@ -40,6 +41,17 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         provider=request.provider,
         model=resolved_model,
         results=results,
+    )
+
+
+@app.get("/api/model-options", response_model=ModelOptionsResponse)
+async def model_options(provider: ProviderName = "openai") -> ModelOptionsResponse:
+    settings = get_settings()
+    models = await list_provider_models(provider, settings)
+    return ModelOptionsResponse(
+        provider=provider,
+        default_model=resolve_model(provider, None),
+        models=models,
     )
 
 

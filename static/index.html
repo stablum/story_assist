@@ -34,8 +34,11 @@
             </select>
           </div>
           <div>
-            <label for="model">Model (optional)</label>
-            <input id="model" type="text" placeholder="Leave blank for provider default">
+            <label for="model">Model</label>
+            <select id="model">
+              <option value="">Loading models...</option>
+            </select>
+            <p id="model-note" class="field-note">Pick from available models for the selected provider.</p>
           </div>
           <div>
             <label for="reasoning-effort">Reasoning Effort</label>

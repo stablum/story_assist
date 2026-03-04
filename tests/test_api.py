@@ -68,6 +68,21 @@ def test_analyze_rejects_invalid_reasoning_effort():
     assert response.status_code == 422
 
 
+def test_model_options_route(monkeypatch):
+    async def fake_list_provider_models(provider, settings):
+        assert provider == "openai"
+        return ["gpt-5.2", "gpt-5.3-chat-latest"]
+
+    monkeypatch.setattr("app.main.list_provider_models", fake_list_provider_models)
+
+    response = client.get("/api/model-options", params={"provider": "openai"})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "openai"
+    assert payload["default_model"] == "gpt-5.2"
+    assert payload["models"] == ["gpt-5.2", "gpt-5.3-chat-latest"]
+
+
 def test_static_index_is_served():
     response = client.get("/")
     assert response.status_code == 200

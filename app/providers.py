@@ -11,6 +11,29 @@ DEFAULT_MODELS: dict[ProviderName, str] = {
     "anthropic": "claude-sonnet-4-5",
     "google": "gemini-2.5-pro",
 }
+FALLBACK_MODELS: dict[ProviderName, list[str]] = {
+    "openai": [
+        "gpt-5.2",
+        "gpt-5.3-chat-latest",
+        "gpt-5.1-chat-latest",
+        "gpt-5",
+        "gpt-5-mini",
+        "gpt-4.1",
+        "gpt-4.1-mini",
+        "gpt-4o",
+        "gpt-4o-mini",
+    ],
+    "anthropic": [
+        "claude-sonnet-4-5",
+        "claude-opus-4-1",
+        "claude-sonnet-4",
+    ],
+    "google": [
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+    ],
+}
 
 
 class ProviderConfigurationError(RuntimeError):
@@ -25,6 +48,42 @@ def resolve_model(provider: ProviderName, requested_model: str | None) -> str:
     if requested_model:
         return requested_model
     return DEFAULT_MODELS[provider]
+
+
+def _sort_and_deduplicate(models: list[str], *, default_model: str) -> list[str]:
+    unique = sorted({model.strip() for model in models if model and model.strip()})
+    if default_model in unique:
+        unique.remove(default_model)
+    return [default_model, *unique]
+
+
+def _list_openai_models(api_key: str) -> list[str]:
+    from openai import OpenAI
+
+    client = OpenAI(api_key=api_key)
+    response = client.models.list()
+    return [item.id for item in getattr(response, "data", []) if getattr(item, "id", None)]
+
+
+def _list_anthropic_models(api_key: str) -> list[str]:
+    from anthropic import Anthropic
+
+    client = Anthropic(api_key=api_key)
+    response = client.models.list()
+    return [item.id for item in getattr(response, "data", []) if getattr(item, "id", None)]
+
+
+def _list_google_models(api_key: str) -> list[str]:
+    from google import genai
+
+    client = genai.Client(api_key=api_key)
+    names: list[str] = []
+    for item in client.models.list():
+        model_name = getattr(item, "name", "")
+        if not model_name:
+            continue
+        names.append(model_name.split("/")[-1])
+    return names
 
 
 def _extract_openai_text(response: Any) -> str:
@@ -188,3 +247,31 @@ async def run_provider_prompt(
         return resolved_model, answer
 
     raise ProviderConfigurationError(f"Unsupported provider: {provider}")
+
+
+async def list_provider_models(provider: ProviderName, settings: Settings) -> list[str]:
+    default_model = resolve_model(provider, None)
+    fallback_models = FALLBACK_MODELS[provider]
+
+    try:
+        if provider == "openai":
+            if not settings.openai_api_key:
+                return _sort_and_deduplicate(fallback_models, default_model=default_model)
+            models = await asyncio.to_thread(_list_openai_models, settings.openai_api_key)
+            return _sort_and_deduplicate(models, default_model=default_model)
+
+        if provider == "anthropic":
+            if not settings.anthropic_api_key:
+                return _sort_and_deduplicate(fallback_models, default_model=default_model)
+            models = await asyncio.to_thread(_list_anthropic_models, settings.anthropic_api_key)
+            return _sort_and_deduplicate(models, default_model=default_model)
+
+        if provider == "google":
+            if not settings.google_api_key:
+                return _sort_and_deduplicate(fallback_models, default_model=default_model)
+            models = await asyncio.to_thread(_list_google_models, settings.google_api_key)
+            return _sort_and_deduplicate(models, default_model=default_model)
+    except Exception:
+        return _sort_and_deduplicate(fallback_models, default_model=default_model)
+
+    return _sort_and_deduplicate(fallback_models, default_model=default_model)
