@@ -17,7 +17,12 @@ from app.schemas import (
     QuestionRunStatus,
     ReasoningEffort,
 )
+from app.security import safe_error_message
 from app.service import answer_single_question
+
+
+class JobCapacityError(RuntimeError):
+    """Raised when the job queue has reached configured capacity."""
 
 
 @dataclass
@@ -34,6 +39,7 @@ class JobItem:
 @dataclass
 class JobRecord:
     job_id: str
+    owner_id: str
     status: AnalyzeJobStatus
     provider: ProviderName
     model: str
@@ -44,19 +50,33 @@ class JobRecord:
 
 
 class JobManager:
-    def __init__(self, *, max_jobs: int = 100) -> None:
+    def __init__(
+        self,
+        *,
+        max_jobs: int = 200,
+        max_active_jobs: int = 30,
+        max_concurrent_jobs: int = 4,
+        max_parallel_questions_per_job: int = 4,
+        max_global_parallel_questions: int = 16,
+    ) -> None:
         self._jobs: dict[str, JobRecord] = {}
         self._max_jobs = max_jobs
+        self._max_active_jobs = max_active_jobs
+        self._max_parallel_questions_per_job = max_parallel_questions_per_job
         self._lock = asyncio.Lock()
+        self._job_semaphore = asyncio.Semaphore(max_concurrent_jobs)
+        self._global_question_semaphore = asyncio.Semaphore(max_global_parallel_questions)
 
     async def create_job(
         self,
         request: AnalyzeRequest,
         settings: Settings,
+        owner_id: str,
     ) -> AnalyzeJobCreateResponse:
         job_id = uuid4().hex
         record = JobRecord(
             job_id=job_id,
+            owner_id=owner_id,
             status="queued",
             provider=request.provider,
             model=resolve_model(request.provider, request.model),
@@ -71,15 +91,26 @@ class JobManager:
 
         async with self._lock:
             self._prune_jobs_unlocked()
+            active_jobs = sum(
+                1
+                for job in self._jobs.values()
+                if job.status in ("queued", "running")
+            )
+            if active_jobs >= self._max_active_jobs:
+                raise JobCapacityError("Too many active jobs. Please retry shortly.")
             self._jobs[job_id] = record
 
         asyncio.create_task(self._run_job(job_id, request, settings))
         return AnalyzeJobCreateResponse(job_id=job_id, status=record.status)
 
-    async def get_job_progress(self, job_id: str) -> AnalyzeJobProgressResponse | None:
+    async def get_job_progress(
+        self,
+        job_id: str,
+        owner_id: str,
+    ) -> AnalyzeJobProgressResponse | None:
         async with self._lock:
             record = self._jobs.get(job_id)
-            if not record:
+            if not record or record.owner_id != owner_id:
                 return None
             return self._to_progress_response(record)
 
@@ -87,17 +118,20 @@ class JobManager:
         await self._set_job_status(job_id, "running")
 
         try:
-            tasks = [
-                self._run_question(
-                    job_id=job_id,
-                    index=index,
-                    question=question,
-                    request=request,
-                    settings=settings,
-                )
-                for index, question in enumerate(request.questions)
-            ]
-            await asyncio.gather(*tasks)
+            async with self._job_semaphore:
+                per_job_semaphore = asyncio.Semaphore(self._max_parallel_questions_per_job)
+                tasks = [
+                    self._run_question(
+                        job_id=job_id,
+                        index=index,
+                        question=question,
+                        request=request,
+                        settings=settings,
+                        per_job_semaphore=per_job_semaphore,
+                    )
+                    for index, question in enumerate(request.questions)
+                ]
+                await asyncio.gather(*tasks)
 
             async with self._lock:
                 record = self._jobs.get(job_id)
@@ -108,6 +142,7 @@ class JobManager:
                 record.finished_at = time.time()
                 record.status = "completed_with_errors" if failed else "completed"
         except Exception as exc:
+            safe_error = safe_error_message(exc)
             async with self._lock:
                 record = self._jobs.get(job_id)
                 if not record:
@@ -117,7 +152,7 @@ class JobManager:
                 for item in record.items:
                     if item.status in ("queued", "running"):
                         item.status = "failed"
-                        item.error = str(exc)
+                        item.error = safe_error
                         if item.finished_at is None:
                             item.finished_at = time.time()
 
@@ -129,21 +164,24 @@ class JobManager:
         question: str,
         request: AnalyzeRequest,
         settings: Settings,
+        per_job_semaphore: asyncio.Semaphore,
     ) -> None:
         await self._mark_item_running(job_id, index)
 
         try:
-            _, resolved_model, answer = await answer_single_question(
-                story_sketch=request.story_sketch,
-                question=question,
-                question_preamble=request.question_preamble,
-                provider=request.provider,
-                model=request.model,
-                reasoning_effort=request.reasoning_effort,
-                settings=settings,
-            )
+            async with per_job_semaphore:
+                async with self._global_question_semaphore:
+                    _, resolved_model, answer = await answer_single_question(
+                        story_sketch=request.story_sketch,
+                        question=question,
+                        question_preamble=request.question_preamble,
+                        provider=request.provider,
+                        model=request.model,
+                        reasoning_effort=request.reasoning_effort,
+                        settings=settings,
+                    )
         except Exception as exc:
-            await self._mark_item_failed(job_id, index, str(exc))
+            await self._mark_item_failed(job_id, index, safe_error_message(exc))
             return
 
         await self._mark_item_completed(job_id, index, answer, resolved_model)

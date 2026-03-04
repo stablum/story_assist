@@ -16,7 +16,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: "Source Serif 4", Georgia, serif;
+  font-family: "Palatino Linotype", "Book Antiqua", Georgia, serif;
   color: var(--ink);
   background:
     radial-gradient(circle at 10% 20%, rgba(255, 239, 210, 0.9) 0%, rgba(255, 239, 210, 0) 45%),
@@ -62,7 +62,7 @@ body {
 h1,
 h2,
 h3 {
-  font-family: "Cinzel", "Times New Roman", serif;
+  font-family: "Bodoni MT", Garamond, "Times New Roman", serif;
   line-height: 1.15;
 }
 
@@ -197,7 +197,7 @@ select:focus {
   background: linear-gradient(140deg, var(--accent), var(--accent-dark));
   color: #fff9f2;
   padding: 0.75rem 1rem;
-  font-family: "Cinzel", serif;
+  font-family: "Bodoni MT", Garamond, serif;
   letter-spacing: 0.04em;
   cursor: pointer;
 }
@@ -387,7 +387,7 @@ select:focus {
 
 .answer-card h4 {
   margin: 0 0 0.45rem;
-  font-family: "Cinzel", serif;
+  font-family: "Bodoni MT", Garamond, serif;
   font-size: 1.02rem;
 }
 
@@ -425,7 +425,7 @@ select:focus {
 .answer-markdown h3,
 .answer-markdown h4 {
   margin: 0.72rem 0 0.42rem;
-  font-family: "Cinzel", serif;
+  font-family: "Bodoni MT", Garamond, serif;
 }
 
 .answer-markdown a {
@@ -489,4 +489,5 @@ select:focus {
     grid-template-columns: 1fr 1fr 1fr;
   }
 }
+
 

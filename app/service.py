@@ -7,13 +7,16 @@ from pathlib import Path
 from app.config import Settings
 from app.providers import run_provider_prompt
 from app.schemas import AnswerItem, ProviderName, ReasoningEffort
+from app.security import safe_error_message
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
 
 @lru_cache(maxsize=16)
 def load_template(template_name: str) -> str:
-    template_path = TEMPLATES_DIR / template_name
+    template_path = (TEMPLATES_DIR / template_name).resolve()
+    if template_path.parent != TEMPLATES_DIR.resolve():
+        raise ValueError("Invalid template path")
     return template_path.read_text(encoding="utf-8").strip()
 
 
@@ -83,7 +86,7 @@ async def analyze_story(
                 AnswerItem(
                     question=question,
                     answer="",
-                    error=str(output),
+                    error=safe_error_message(output),
                 )
             )
             continue

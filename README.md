@@ -2,6 +2,14 @@
 
 Story Assist expands short story sketches into researched outputs by asking configurable questions against web-enabled LLM providers.
 
+## Security Defaults
+
+- API routes require `Authorization: Bearer <APP_API_TOKEN>`.
+- Job creation is rate-limited and concurrency-bounded.
+- Request size and question-count limits are enforced.
+- Security headers and restrictive default CORS are enabled.
+- Prompt templates are stored in `app/templates/`.
+
 ## Install
 
 1. Install prerequisites (Windows + Scoop):
@@ -11,9 +19,10 @@ Story Assist expands short story sketches into researched outputs by asking conf
 3. Sync dependencies:
    - `.\.venv\Scripts\activate`
    - `uv sync --all-groups`
-4. Configure API keys:
+4. Configure API keys and token:
    - `Copy-Item .env.example .env`
-   - Fill one or more of `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`
+   - Set `APP_API_TOKEN` to a long random value.
+   - Fill one or more of `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`.
 
 ## Run
 
@@ -21,24 +30,35 @@ Story Assist expands short story sketches into researched outputs by asking conf
 uv run uvicorn app.main:app --reload
 ```
 
-Open `http://127.0.0.1:8000`.
+Open `http://127.0.0.1:8000`, paste `APP_API_TOKEN` in the UI token field, then run analyses.
 
-Default provider models:
+## Runtime Limits
+
+Adjust in `.env` if needed:
+
+- `ALLOWED_ORIGINS`
+- `MAX_STORY_SKETCH_CHARS`
+- `MAX_QUESTION_PREAMBLE_CHARS`
+- `MAX_QUESTIONS`
+- `MAX_QUESTION_CHARS`
+- `MAX_ACTIVE_JOBS`
+- `MAX_CONCURRENT_JOBS`
+- `MAX_PARALLEL_QUESTIONS_PER_JOB`
+- `MAX_GLOBAL_PARALLEL_QUESTIONS`
+- `MAX_JOB_CREATIONS_PER_MINUTE`
+- `PROVIDER_TIMEOUT_SECONDS`
+- `MAX_OUTPUT_TOKENS`
+
+## Defaults
+
 - OpenAI: `gpt-5.2`
 - Anthropic: `claude-sonnet-4-5`
 - Google: `gemini-2.5-pro`
 
-OpenAI requests also support configurable `reasoning_effort` (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`) from the UI.
-
-The UI model selector is a dropdown populated from `/api/model-options` for the chosen provider.
-The UI includes a common question preamble textbox that is applied to every configured question.
-The analysis run now shows live progress per question using `/api/analyze/jobs` polling.
-Prompt and question templates are stored under `app/templates/`.
+OpenAI requests support configurable `reasoning_effort` (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`) from the UI.
 
 ## Test
 
 ```powershell
 uv run pytest
 ```
-
-

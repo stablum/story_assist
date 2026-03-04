@@ -1,8 +1,29 @@
+import os
+
 from fastapi.testclient import TestClient
+
+os.environ.setdefault("APP_API_TOKEN", "test-token")
+
+from app.config import get_settings
+
+get_settings.cache_clear()
 
 from app.main import app
 
 client = TestClient(app)
+AUTH_HEADERS = {"Authorization": "Bearer test-token"}
+
+
+def test_analyze_requires_auth():
+    response = client.post(
+        "/api/analyze",
+        json={
+            "story_sketch": "A sketch",
+            "questions": ["Question"],
+            "provider": "openai",
+        },
+    )
+    assert response.status_code == 401
 
 
 def test_analyze_valid_request(monkeypatch):
@@ -24,6 +45,7 @@ def test_analyze_valid_request(monkeypatch):
 
     response = client.post(
         "/api/analyze",
+        headers=AUTH_HEADERS,
         json={
             "story_sketch": "A factory reopens in a small town.",
             "question_preamble": "Use an investigative tone and cite official sources.",
@@ -46,6 +68,7 @@ def test_analyze_valid_request(monkeypatch):
 def test_analyze_rejects_empty_question_list():
     response = client.post(
         "/api/analyze",
+        headers=AUTH_HEADERS,
         json={
             "story_sketch": "A sketch",
             "questions": [],
@@ -59,6 +82,7 @@ def test_analyze_rejects_empty_question_list():
 def test_analyze_rejects_invalid_reasoning_effort():
     response = client.post(
         "/api/analyze",
+        headers=AUTH_HEADERS,
         json={
             "story_sketch": "A sketch",
             "questions": ["What next?"],
@@ -77,7 +101,11 @@ def test_model_options_route(monkeypatch):
 
     monkeypatch.setattr("app.main.list_provider_models", fake_list_provider_models)
 
-    response = client.get("/api/model-options", params={"provider": "openai"})
+    response = client.get(
+        "/api/model-options",
+        headers=AUTH_HEADERS,
+        params={"provider": "openai"},
+    )
     assert response.status_code == 200
     payload = response.json()
     assert payload["provider"] == "openai"
@@ -86,15 +114,17 @@ def test_model_options_route(monkeypatch):
 
 
 def test_create_analyze_job_route(monkeypatch):
-    async def fake_create_job(request, settings):
+    async def fake_create_job(request, settings, owner_id):
         assert request.provider == "openai"
         assert request.question_preamble == "Prioritize policy and labor impact."
+        assert owner_id
         return {"job_id": "job123", "status": "queued"}
 
     monkeypatch.setattr("app.main.job_manager.create_job", fake_create_job)
 
     response = client.post(
         "/api/analyze/jobs",
+        headers=AUTH_HEADERS,
         json={
             "story_sketch": "A factory reopens in a small town.",
             "question_preamble": "Prioritize policy and labor impact.",
@@ -111,8 +141,9 @@ def test_create_analyze_job_route(monkeypatch):
 
 
 def test_analyze_job_progress_route(monkeypatch):
-    async def fake_get_job_progress(job_id):
+    async def fake_get_job_progress(job_id, owner_id):
         assert job_id == "job123"
+        assert owner_id
         return {
             "job_id": "job123",
             "status": "running",
@@ -151,7 +182,7 @@ def test_analyze_job_progress_route(monkeypatch):
 
     monkeypatch.setattr("app.main.job_manager.get_job_progress", fake_get_job_progress)
 
-    response = client.get("/api/analyze/jobs/job123")
+    response = client.get("/api/analyze/jobs/job123", headers=AUTH_HEADERS)
     assert response.status_code == 200
     payload = response.json()
     assert payload["job_id"] == "job123"
@@ -160,20 +191,30 @@ def test_analyze_job_progress_route(monkeypatch):
 
 
 def test_analyze_job_progress_not_found(monkeypatch):
-    async def fake_get_job_progress(job_id):
+    async def fake_get_job_progress(job_id, owner_id):
         return None
 
     monkeypatch.setattr("app.main.job_manager.get_job_progress", fake_get_job_progress)
 
-    response = client.get("/api/analyze/jobs/missing")
+    response = client.get("/api/analyze/jobs/missing", headers=AUTH_HEADERS)
     assert response.status_code == 404
+
+
+def test_analyze_rejects_too_many_questions():
+    response = client.post(
+        "/api/analyze",
+        headers=AUTH_HEADERS,
+        json={
+            "story_sketch": "A sketch",
+            "questions": [f"Question {i}" for i in range(13)],
+            "provider": "openai",
+        },
+    )
+
+    assert response.status_code == 422
 
 
 def test_static_index_is_served():
     response = client.get("/")
     assert response.status_code == 200
     assert "Story Assist Desk" in response.text
-
-
-
-

@@ -5,7 +5,10 @@ const defaultQuestions = [
   "What timeline of events is likely and which dates should be confirmed first?",
 ];
 
+const TOKEN_STORAGE_KEY = "storyAssistApiToken";
+
 const form = document.getElementById("analyze-form");
+const apiTokenInput = document.getElementById("api-token");
 const storySketch = document.getElementById("story-sketch");
 const questionPreambleInput = document.getElementById("question-preamble");
 const providerInput = document.getElementById("provider");
@@ -33,6 +36,50 @@ let pollingTimer = null;
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
   statusEl.style.color = isError ? "#8d2118" : "#5f5249";
+}
+
+function getApiToken() {
+  return apiTokenInput.value.trim();
+}
+
+function persistToken() {
+  const token = getApiToken();
+  if (!token) {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    return;
+  }
+  localStorage.setItem(TOKEN_STORAGE_KEY, token);
+}
+
+function restoreToken() {
+  const token = localStorage.getItem(TOKEN_STORAGE_KEY) || "";
+  apiTokenInput.value = token;
+}
+
+async function apiFetchJson(url, options = {}) {
+  const token = getApiToken();
+  if (!token) {
+    throw new Error("API token required. Set APP_API_TOKEN and paste it in the UI.");
+  }
+
+  const requestOptions = {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      Authorization: `Bearer ${token}`,
+    },
+  };
+
+  const response = await fetch(url, requestOptions);
+
+  let body = {};
+  try {
+    body = await response.json();
+  } catch {
+    body = {};
+  }
+
+  return { response, body };
 }
 
 function renderQuestions() {
@@ -93,6 +140,14 @@ function setModelOptions(defaultModel, models, selectedValue) {
 }
 
 async function loadModelOptions() {
+  const token = getApiToken();
+  if (!token) {
+    modelSelect.disabled = true;
+    setModelOptions("", [], "");
+    modelNote.textContent = "Enter API token to load models.";
+    return;
+  }
+
   const requestId = ++modelRequestCounter;
   const provider = providerInput.value;
   const previousSelection = modelSelect.value;
@@ -100,8 +155,10 @@ async function loadModelOptions() {
   modelSelect.innerHTML = "<option value=\"\">Loading models...</option>";
 
   try {
-    const response = await fetch(`/api/model-options?provider=${encodeURIComponent(provider)}`);
-    const body = await response.json();
+    const { response, body } = await apiFetchJson(
+      `/api/model-options?provider=${encodeURIComponent(provider)}`,
+    );
+
     if (!response.ok) {
       throw new Error(body.detail || "Could not load models");
     }
@@ -144,33 +201,128 @@ function escapeHtml(text) {
     .replaceAll("'", "&#039;");
 }
 
-function markdownToHtml(markdownText) {
-  const source = typeof markdownText === "string" ? markdownText : "";
-
-  if (window.marked && typeof window.marked.parse === "function") {
-    const rendered = window.marked.parse(source, {
-      gfm: true,
-      breaks: true,
-    });
-    if (window.DOMPurify && typeof window.DOMPurify.sanitize === "function") {
-      return window.DOMPurify.sanitize(rendered, { USE_PROFILES: { html: true } });
+function safeUrl(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl, window.location.origin);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return parsed.href;
     }
-    return rendered;
+  } catch {
+    return null;
   }
-
-  return escapeHtml(source).replaceAll("\n", "<br>");
+  return null;
 }
 
-function secureRenderedLinks(container) {
-  container.querySelectorAll("a").forEach((anchor) => {
-    anchor.target = "_blank";
-    anchor.rel = "noopener noreferrer";
+function renderInlineMarkdown(source) {
+  const segments = source.split(/`([^`]+)`/g);
+  const rendered = segments.map((segment, index) => {
+    if (index % 2 === 1) {
+      return `<code>${escapeHtml(segment)}</code>`;
+    }
+
+    const linkTokens = [];
+    let plain = segment.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (match, label, url) => {
+      const safe = safeUrl(url);
+      if (!safe) {
+        return match;
+      }
+      const token = `__LINK_TOKEN_${linkTokens.length}__`;
+      linkTokens.push(
+        `<a href="${escapeHtml(safe)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`,
+      );
+      return token;
+    });
+
+    plain = escapeHtml(plain)
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*([^*]+)\*/g, "<em>$1</em>");
+
+    linkTokens.forEach((tokenHtml, tokenIndex) => {
+      plain = plain.replace(`__LINK_TOKEN_${tokenIndex}__`, tokenHtml);
+    });
+
+    return plain;
   });
+
+  return rendered.join("");
+}
+
+function markdownToHtml(markdownText) {
+  const source = (typeof markdownText === "string" ? markdownText : "").replace(/\r\n/g, "\n");
+  const lines = source.split("\n");
+  const html = [];
+  const listItems = [];
+  let inCodeBlock = false;
+  const codeLines = [];
+
+  const flushList = () => {
+    if (!listItems.length) {
+      return;
+    }
+    html.push(`<ul>${listItems.map((item) => `<li>${item}</li>`).join("")}</ul>`);
+    listItems.length = 0;
+  };
+
+  const flushCodeBlock = () => {
+    if (!codeLines.length) {
+      html.push("<pre><code></code></pre>");
+      return;
+    }
+    html.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+    codeLines.length = 0;
+  };
+
+  lines.forEach((line) => {
+    if (line.trim().startsWith("```")) {
+      flushList();
+      if (!inCodeBlock) {
+        inCodeBlock = true;
+      } else {
+        flushCodeBlock();
+        inCodeBlock = false;
+      }
+      return;
+    }
+
+    if (inCodeBlock) {
+      codeLines.push(line);
+      return;
+    }
+
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushList();
+      return;
+    }
+
+    const listMatch = trimmed.match(/^[-*]\s+(.+)$/);
+    if (listMatch) {
+      listItems.push(renderInlineMarkdown(listMatch[1]));
+      return;
+    }
+
+    flushList();
+
+    const headingMatch = trimmed.match(/^(#{1,4})\s+(.+)$/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      html.push(`<h${level}>${renderInlineMarkdown(headingMatch[2])}</h${level}>`);
+      return;
+    }
+
+    html.push(`<p>${renderInlineMarkdown(trimmed)}</p>`);
+  });
+
+  if (inCodeBlock) {
+    flushCodeBlock();
+  }
+  flushList();
+
+  return html.join("\n");
 }
 
 function renderMarkdownBlock(container, markdownText) {
   container.innerHTML = markdownToHtml(markdownText);
-  secureRenderedLinks(container);
 }
 
 function renderAnswers(results) {
@@ -339,8 +491,7 @@ function buildResultItems(progress) {
 
 async function pollJob(jobId) {
   try {
-    const response = await fetch(`/api/analyze/jobs/${encodeURIComponent(jobId)}`);
-    const body = await response.json();
+    const { response, body } = await apiFetchJson(`/api/analyze/jobs/${encodeURIComponent(jobId)}`);
 
     if (!response.ok) {
       throw new Error(body.detail || "Could not fetch progress");
@@ -390,6 +541,11 @@ addQuestionButton.addEventListener("click", () => {
   renderQuestions();
 });
 
+apiTokenInput.addEventListener("input", () => {
+  persistToken();
+  void loadModelOptions();
+});
+
 providerInput.addEventListener("change", () => {
   syncReasoningControl();
   void loadModelOptions();
@@ -398,9 +554,15 @@ providerInput.addEventListener("change", () => {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
+  const token = getApiToken();
   const cleanedStory = storySketch.value.trim();
   const cleanedPreamble = questionPreambleInput.value.trim();
   const cleanedQuestions = getCleanQuestions();
+
+  if (!token) {
+    setStatus("API token required. Set APP_API_TOKEN and paste it above.", true);
+    return;
+  }
 
   if (!cleanedStory) {
     setStatus("Please provide a story sketch first.", true);
@@ -434,12 +596,11 @@ form.addEventListener("submit", async (event) => {
   metaEl.textContent = "";
 
   try {
-    const response = await fetch("/api/analyze/jobs", {
+    const { response, body } = await apiFetchJson("/api/analyze/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const body = await response.json();
 
     if (!response.ok) {
       throw new Error(body.detail || "Analysis failed to start");
@@ -473,10 +634,8 @@ form.addEventListener("submit", async (event) => {
   }
 });
 
+restoreToken();
 renderQuestions();
 syncReasoningControl();
 resetProgressPanel();
 void loadModelOptions();
-
-
-
