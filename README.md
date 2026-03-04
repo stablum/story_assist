@@ -33,10 +33,12 @@ OpenAI requests also support configurable `reasoning_effort` (`none`, `minimal`,
 The UI model selector is a dropdown populated from `/api/model-options` for the chosen provider.
 The UI includes a common question preamble textbox that is applied to every configured question.
 The analysis run now shows live progress per question using `/api/analyze/jobs` polling.
+Prompt and question templates are stored under `app/templates/`.
 
 ## Test
 
 ```powershell
 uv run pytest
 ```
+
 

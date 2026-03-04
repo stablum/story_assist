@@ -1,33 +1,29 @@
 from __future__ import annotations
 
 import asyncio
+from functools import lru_cache
+from pathlib import Path
 
 from app.config import Settings
 from app.providers import run_provider_prompt
 from app.schemas import AnswerItem, ProviderName, ReasoningEffort
 
-PROMPT_TEMPLATE = """
-You are a research assistant for journalists and fiction/non-fiction story writers.
-Use web search to verify facts before answering.
+TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
-Story sketch:
-{story_sketch}
 
-Question:
-{question_block}
-
-Instructions:
-- Answer in 2-5 concise paragraphs.
-- Include concrete names, places, dates, and useful context.
-- If facts are uncertain, say what needs verification.
-- Add a short source list with direct URLs when possible.
-""".strip()
+@lru_cache(maxsize=16)
+def load_template(template_name: str) -> str:
+    template_path = TEMPLATES_DIR / template_name
+    return template_path.read_text(encoding="utf-8").strip()
 
 
 def build_question_block(question: str, question_preamble: str | None) -> str:
     if not question_preamble:
-        return question
-    return f"Common preamble to apply:\n{question_preamble}\n\nSpecific question:\n{question}"
+        return load_template("question_block_plain.txt").format(question=question)
+    return load_template("question_block_with_preamble.txt").format(
+        question_preamble=question_preamble,
+        question=question,
+    )
 
 
 async def answer_single_question(
@@ -40,7 +36,7 @@ async def answer_single_question(
     reasoning_effort: ReasoningEffort | None,
     settings: Settings,
 ) -> tuple[str, str, str]:
-    prompt = PROMPT_TEMPLATE.format(
+    prompt = load_template("research_prompt.txt").format(
         story_sketch=story_sketch,
         question_block=build_question_block(question, question_preamble),
     )
