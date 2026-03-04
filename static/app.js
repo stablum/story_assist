@@ -134,6 +134,44 @@ function syncReasoningControl() {
     : "Ignored for this provider.";
 }
 
+function escapeHtml(text) {
+  return text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function markdownToHtml(markdownText) {
+  const source = typeof markdownText === "string" ? markdownText : "";
+
+  if (window.marked && typeof window.marked.parse === "function") {
+    const rendered = window.marked.parse(source, {
+      gfm: true,
+      breaks: true,
+    });
+    if (window.DOMPurify && typeof window.DOMPurify.sanitize === "function") {
+      return window.DOMPurify.sanitize(rendered, { USE_PROFILES: { html: true } });
+    }
+    return rendered;
+  }
+
+  return escapeHtml(source).replaceAll("\n", "<br>");
+}
+
+function secureRenderedLinks(container) {
+  container.querySelectorAll("a").forEach((anchor) => {
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer";
+  });
+}
+
+function renderMarkdownBlock(container, markdownText) {
+  container.innerHTML = markdownToHtml(markdownText);
+  secureRenderedLinks(container);
+}
+
 function renderAnswers(results) {
   answersEl.innerHTML = "";
 
@@ -144,16 +182,46 @@ function renderAnswers(results) {
     const title = document.createElement("h4");
     title.textContent = item.question;
 
-    const output = document.createElement("textarea");
-    output.value = item.error
-      ? `Error: ${item.error}`
-      : item.answer;
-
     if (item.error) {
-      output.classList.add("answer-error");
+      const errorText = document.createElement("p");
+      errorText.className = "answer-error";
+      errorText.textContent = `Error: ${item.error}`;
+      card.append(title, errorText);
+      answersEl.append(card);
+      return;
     }
 
-    card.append(title, output);
+    const toolbar = document.createElement("div");
+    toolbar.className = "answer-toolbar";
+
+    const editButton = document.createElement("button");
+    editButton.type = "button";
+    editButton.textContent = "Edit Markdown";
+    toolbar.append(editButton);
+
+    const output = document.createElement("div");
+    output.className = "answer-markdown";
+
+    const rawInput = document.createElement("textarea");
+    rawInput.className = "answer-raw";
+    rawInput.value = item.answer || "";
+
+    const rerender = () => {
+      renderMarkdownBlock(output, rawInput.value);
+    };
+    rerender();
+
+    editButton.addEventListener("click", () => {
+      const willShow = !rawInput.classList.contains("is-visible");
+      rawInput.classList.toggle("is-visible");
+      editButton.textContent = willShow ? "Hide Editor" : "Edit Markdown";
+      if (willShow) {
+        rawInput.focus();
+      }
+    });
+
+    rawInput.addEventListener("input", rerender);
+    card.append(title, toolbar, output, rawInput);
     answersEl.append(card);
   });
 }

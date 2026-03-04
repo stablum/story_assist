@@ -386,9 +386,72 @@ select:focus {
   font-size: 1.02rem;
 }
 
-.answer-card textarea {
-  min-height: 160px;
+.answer-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+}
+
+.answer-toolbar button {
+  border: 1px solid #b69274;
+  background: #fff3e2;
+  color: var(--ink-soft);
+  padding: 0.32rem 0.55rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.answer-markdown {
+  border: 1px solid #dcc6ad;
+  background: #fffefb;
+  padding: 0.75rem;
+  line-height: 1.55;
+}
+
+.answer-markdown p,
+.answer-markdown ul,
+.answer-markdown ol,
+.answer-markdown blockquote {
+  margin: 0.5rem 0;
+}
+
+.answer-markdown h1,
+.answer-markdown h2,
+.answer-markdown h3,
+.answer-markdown h4 {
+  margin: 0.72rem 0 0.42rem;
+  font-family: "Cinzel", serif;
+}
+
+.answer-markdown a {
+  color: #9d300f;
+  text-decoration-thickness: 1px;
+}
+
+.answer-markdown code {
+  background: #f4e8d7;
+  border: 1px solid #e0c8ad;
+  padding: 0.04rem 0.25rem;
+  font-size: 0.88em;
+  border-radius: 3px;
+}
+
+.answer-markdown pre {
+  background: #f4e8d7;
+  border: 1px solid #e0c8ad;
+  padding: 0.62rem;
+  overflow-x: auto;
+}
+
+.answer-raw {
+  margin-top: 0.6rem;
+  min-height: 140px;
   background: #fffefc;
+  display: none;
+}
+
+.answer-raw.is-visible {
+  display: block;
 }
 
 .answer-error {
