@@ -12,7 +12,9 @@ Story Assist expands short story sketches into researched outputs by asking conf
 
 ## Install
 
-1. Install prerequisites (Windows + Scoop):
+### Windows
+
+1. Install prerequisites (Scoop):
    - `scoop install git uv python`
 2. Create virtual environment:
    - `uv venv .venv`
@@ -24,9 +26,26 @@ Story Assist expands short story sketches into researched outputs by asking conf
    - Set `APP_API_TOKEN` to a long random value.
    - Fill one or more of `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`.
 
+### Linux Mint
+
+1. Install prerequisites:
+   - `sudo apt update`
+   - `sudo apt install -y git curl python3 python3-venv`
+   - `curl -LsSf https://astral.sh/uv/install.sh | sh`
+   - Restart the shell so `uv` is on `PATH`, or run `source "$HOME/.local/bin/env"` if the installer created that file.
+2. Create virtual environment:
+   - `uv venv .venv`
+3. Sync dependencies:
+   - `source .venv/bin/activate`
+   - `uv sync --all-groups`
+4. Configure API keys and token:
+   - `cp .env.example .env`
+   - Set `APP_API_TOKEN` to a long random value.
+   - Fill one or more of `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`.
+
 ## Run
 
-```powershell
+```bash
 uv run uvicorn app.main:app --reload
 ```
 
@@ -59,6 +78,6 @@ OpenAI requests support configurable `reasoning_effort` (`none`, `minimal`, `low
 
 ## Test
 
-```powershell
+```bash
 uv run pytest
 ```
