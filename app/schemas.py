@@ -93,6 +93,10 @@ class ModelOptionsResponse(BaseModel):
     models: list[str]
 
 
+class AppDefaultsResponse(BaseModel):
+    question_preamble_default: str
+
+
 class AnalyzeJobCreateResponse(BaseModel):
     job_id: str
     status: AnalyzeJobStatus
@@ -122,3 +126,4 @@ class AnalyzeJobProgressResponse(BaseModel):
     failed_questions: int
     progress_percent: int
     items: list[AnalyzeJobQuestionProgress]
+

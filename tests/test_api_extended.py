@@ -3,6 +3,7 @@ import pytest
 
 from app.jobs import JobCapacityError
 from app.main import app, job_creation_limiter
+from app.service import load_template
 from app.security import RateLimitExceededError
 
 client = TestClient(app)
@@ -28,6 +29,15 @@ def test_health_endpoint_is_public_and_returns_ok():
     response = client.get("/api/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_defaults_endpoint_returns_default_preamble_template():
+    response = client.get("/api/defaults")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "question_preamble_default": load_template("preamble_default.txt"),
+    }
 
 
 def test_security_headers_are_added_to_responses():
@@ -104,3 +114,5 @@ def test_create_job_returns_429_when_capacity_is_exceeded(monkeypatch):
 def test_job_progress_requires_authentication():
     response = client.get("/api/analyze/jobs/job123")
     assert response.status_code == 401
+
+

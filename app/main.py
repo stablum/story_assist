@@ -14,6 +14,7 @@ from app.schemas import (
     AnalyzeJobProgressResponse,
     AnalyzeRequest,
     AnalyzeResponse,
+    AppDefaultsResponse,
     ModelOptionsResponse,
     ProviderName,
 )
@@ -23,7 +24,7 @@ from app.security import (
     SlidingWindowRateLimiter,
     require_principal,
 )
-from app.service import analyze_story
+from app.service import analyze_story, load_template
 
 settings = get_settings()
 
@@ -112,6 +113,13 @@ async def model_options(
     )
 
 
+@app.get("/api/defaults", response_model=AppDefaultsResponse)
+async def app_defaults() -> AppDefaultsResponse:
+    return AppDefaultsResponse(
+        question_preamble_default=load_template("preamble_default.txt"),
+    )
+
+
 @app.post("/api/analyze/jobs", response_model=AnalyzeJobCreateResponse)
 async def create_analyze_job(
     request: AnalyzeRequest,
@@ -146,3 +154,4 @@ async def health() -> dict[str, str]:
 
 static_dir = Path(__file__).resolve().parent.parent / "static"
 app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+

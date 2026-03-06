@@ -139,6 +139,30 @@ function setModelOptions(defaultModel, models, selectedValue) {
   }
 }
 
+async function loadDefaultQuestionPreamble() {
+  if (questionPreambleInput.value.trim()) {
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/defaults");
+    if (!response.ok) {
+      return;
+    }
+
+    const body = await response.json();
+    if (
+      !questionPreambleInput.value.trim()
+      && typeof body.question_preamble_default === "string"
+      && body.question_preamble_default.trim()
+    ) {
+      questionPreambleInput.value = body.question_preamble_default;
+    }
+  } catch {
+    // Leave the field empty if the default cannot be loaded.
+  }
+}
+
 async function loadModelOptions() {
   const token = getApiToken();
   if (!token) {
@@ -638,4 +662,9 @@ restoreToken();
 renderQuestions();
 syncReasoningControl();
 resetProgressPanel();
+void loadDefaultQuestionPreamble();
 void loadModelOptions();
+
+
+
+
